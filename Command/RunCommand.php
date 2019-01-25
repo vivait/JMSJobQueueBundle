@@ -350,7 +350,7 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
      */
     private function incrementJobCount() {
         $this->currentJobCount++;
-        if($this->currentJobCount >= $this->maxJobCount) {
+        if($this->maxJobCount !== null && $this->currentJobCount >= $this->maxJobCount) {
             $this->shouldShutdown = true;
         }
     }
