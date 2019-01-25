@@ -57,6 +57,9 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
     /** @var bool */
     private $shouldShutdown = false;
 
+    /** @var null|integer */
+    private $maxJobCount = null;
+
     protected function configure()
     {
         $this
@@ -66,6 +69,7 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
             ->addOption('idle-time', null, InputOption::VALUE_REQUIRED, 'Time to sleep when the queue ran out of jobs.', 2)
             ->addOption('queue', null, InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY, 'Restrict to one or more queues.', array())
             ->addOption('worker-name', null, InputOption::VALUE_REQUIRED, 'The name that uniquely identifies this worker process.')
+            ->addOption('max-job-count', null, InputOption::VALUE_OPTIONAL, 'The maximum number of jobs the worker will run before exiting normally.', null)
         ;
     }
 
@@ -90,6 +94,14 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
         $idleTime = (integer) $input->getOption('idle-time');
         if ($idleTime <= 0) {
             throw new InvalidArgumentException('Time to sleep when idling must be greater than zero.');
+        }
+
+        if($input->getOption('max-job-count') !== null) {
+            $maxJobCount = (integer)$input->getOption('max-job-count');
+            if ($maxJobCount <= 0) {
+                throw new InvalidArgumentException('The maxinum number of jobs must be greater than zero.');
+            }
+            $this->maxJobCount = $maxJobCount;
         }
 
         $restrictedQueues = $input->getOption('queue');
@@ -149,6 +161,8 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
             $this->output->writeln('PCNTL extension is not available. Signals cannot be processed.');
         }
 
+        $jobCount = 0;
+
         while (true) {
             if ($hasPcntl) {
                 pcntl_signal_dispatch();
@@ -163,6 +177,11 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
 
             $waitTimeInMs = mt_rand(500, 1000);
             usleep($waitTimeInMs * 1E3);
+
+            $jobCount++;
+            if($jobCount >= $this->maxJobCount) {
+                break;
+            }
         }
 
         if ($this->verbose) {
