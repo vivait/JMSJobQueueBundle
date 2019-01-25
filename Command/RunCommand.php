@@ -60,6 +60,9 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
     /** @var null|integer */
     private $maxJobCount = null;
 
+    /** @var integer */
+    private $currentJobCount = 0;
+
     protected function configure()
     {
         $this
@@ -99,7 +102,7 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
         if($input->getOption('max-job-count') !== null) {
             $maxJobCount = (integer)$input->getOption('max-job-count');
             if ($maxJobCount <= 0) {
-                throw new InvalidArgumentException('The maxinum number of jobs must be greater than zero.');
+                throw new InvalidArgumentException('The maximum number of jobs must be greater than zero.');
             }
             $this->maxJobCount = $maxJobCount;
         }
@@ -177,11 +180,6 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
 
             $waitTimeInMs = mt_rand(500, 1000);
             usleep($waitTimeInMs * 1E3);
-
-            $jobCount++;
-            if($jobCount >= $this->maxJobCount) {
-                break;
-            }
         }
 
         if ($this->verbose) {
@@ -347,8 +345,19 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
         gc_collect_cycles();
     }
 
+    /**
+     * Begin the shutdown sequence if the number of jobs processed has hit the maximum
+     */
+    private function incrementJobCount() {
+        $this->currentJobCount++;
+        if($this->currentJobCount >= $this->maxJobCount) {
+            $this->shouldShutdown = true;
+        }
+    }
+
     private function startJob(Job $job)
     {
+        $this->incrementJobCount();
         $event = new StateChangeEvent($job, Job::STATE_RUNNING);
         $this->dispatcher->dispatch('jms_job_queue.job_state_change', $event);
         $newState = $event->getNewState();
