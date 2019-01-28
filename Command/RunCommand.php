@@ -62,6 +62,10 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
 
     /** @var integer */
     private $currentJobCount = 0;
+    /**
+     * @var bool
+     */
+    private $testMode = false;
 
     protected function configure()
     {
@@ -72,7 +76,8 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
             ->addOption('idle-time', null, InputOption::VALUE_REQUIRED, 'Time to sleep when the queue ran out of jobs.', 2)
             ->addOption('queue', null, InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY, 'Restrict to one or more queues.', array())
             ->addOption('worker-name', null, InputOption::VALUE_REQUIRED, 'The name that uniquely identifies this worker process.')
-            ->addOption('max-job-count', null, InputOption::VALUE_OPTIONAL, 'The maximum number of jobs the worker will run before exiting normally.', null)
+            ->addOption('max-job-count', null, InputOption::VALUE_REQUIRED, 'The maximum number of jobs the worker will run before exiting normally.', null)
+            ->addOption('test-mode', null, InputOption::VALUE_OPTIONAL, 'Reduce the delay in checking and exiting commands, should make tests faster.', null)
         ;
     }
 
@@ -105,6 +110,11 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
                 throw new InvalidArgumentException('The maximum number of jobs must be greater than zero.');
             }
             $this->maxJobCount = $maxJobCount;
+        }
+
+        if($input->getOption('test-mode') !== null) {
+            $idleTime = 0;
+            $this->testMode = true;
         }
 
         $restrictedQueues = $input->getOption('queue');
@@ -164,8 +174,6 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
             $this->output->writeln('PCNTL extension is not available. Signals cannot be processed.');
         }
 
-        $jobCount = 0;
-
         while (true) {
             if ($hasPcntl) {
                 pcntl_signal_dispatch();
@@ -178,7 +186,10 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
             $this->checkRunningJobs();
             $this->startJobs($workerName, $idleTime, $maxJobs, $restrictedQueues, $queueOptionsDefaults, $queueOptions);
 
-            $waitTimeInMs = mt_rand(500, 1000);
+            $waitTimeInMs = 100;
+            if($this->testMode) {
+                $waitTimeInMs = mt_rand(500, 1000);
+            }
             usleep($waitTimeInMs * 1E3);
         }
 
@@ -187,7 +198,9 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
         }
 
         while ( ! empty($this->runningJobs)) {
-            sleep(5);
+            if(!$this->testMode) {
+                sleep(2);
+            }
             $this->checkRunningJobs();
         }
 
