@@ -187,7 +187,7 @@ class RunCommand extends \Symfony\Bundle\FrameworkBundle\Command\ContainerAwareC
             $this->startJobs($workerName, $idleTime, $maxJobs, $restrictedQueues, $queueOptionsDefaults, $queueOptions);
 
             $waitTimeInMs = 100;
-            if($this->testMode) {
+            if(!$this->testMode) {
                 $waitTimeInMs = mt_rand(500, 1000);
             }
             usleep($waitTimeInMs * 1E3);
